@@ -1,0 +1,7 @@
+.Rproj.user
+.Rhistory
+.RData
+.Ruserdata
+other/
+bayesian_modeling/
+ab_testing/
