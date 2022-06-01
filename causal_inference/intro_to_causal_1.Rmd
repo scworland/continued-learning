@@ -5,26 +5,77 @@ date: "1/30/2022"
 output: html_document
 ---
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+knitr::opts_chunk$set(fig.width=5,fig.height=3,fig.align = 'center', warning=F, message=F,cache=F)
+library(tidyverse)
+library(ggdag)
+library(dagitty)
+library(rethinking)
+library(patchwork)
 ```
 
-## R Markdown
+The book uses an example involving "covid27" moralities. I made up a similar dataset using a simulation:
 
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+```{r}
+# drug group
+drug <- c(rep('a',1500),rep('b',550))
 
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+# condition group
+condition_a <- c(rep('mild',1400), rep('severe',100))
+condition_b <- c(rep('mild',50), rep('severe',500))
+condition <- c(condition_a,condition_b)
 
-```{r cars}
-summary(cars)
+# mortality events
+mild_a <- rbinom(1400,1,0.15)
+severe_a <- rbinom(100,1,0.3)
+mild_b <- rbinom(50,1,0.1)
+severe_b <- rbinom(500,1,0.2)
+mortality <- c(mild_a,severe_a,mild_b,severe_b)
+
+# dataframe of drug, condition, and mortality
+d <- tibble(drug, condition, mortality)
+
+d %>% sample_n(10)
 ```
 
-## Including Plots
+```{r}
+# drug alone
+d %>% 
+  group_by(drug) %>%
+  summarize(deaths = sum(mortality),
+            n=n(),
+            p = round(deaths/n,2))
 
-You can also embed plots, for example:
-
-```{r pressure, echo=FALSE}
-plot(pressure)
+# drug and condition
+d %>% 
+  group_by(drug,condition) %>%
+  summarize(deaths = sum(mortality),
+            n=n(),
+            p = round(deaths/n,2))
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+this is an example of simpson's paradox and can only be solved with a causal model.
+
+### Scenario 1
+
+The condition of the patient determines both the treatment and the outcome. E.g., Treatment A is used for people with mild conditions (so less likely to die) and treatment B is saved for people who are more sick and more likely to die.
+
+```{r}
+dagify(
+  Y ~ C + T,
+  T ~ C,
+  exposure = "T",
+  outcome = "Y"
+) %>%
+  tidy_dagitty() %>%
+  ggplot(aes(x = x, y = y, xend = xend, yend = yend)) +
+  geom_dag_point(color='black',fill='white',shape=21) +
+  geom_dag_edges() +
+  geom_dag_text(color='black') +
+  theme_dag_blank() +
+    scale_x_continuous(NULL, breaks = NULL, expand = c(.1, .1)) +
+  scale_y_continuous(NULL, breaks = NULL, expand = c(.1, .1)) 
+
+```
+
+### Scenario 2
